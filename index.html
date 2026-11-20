@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="A4 Print">
+<meta name="theme-color" content="#18191f">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>A4 Print Studio</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0f1012;--s1:#18191f;--s2:#22242c;--s3:#2c2f3a;
+  --bd:#32364a;--bd2:#42475e;
+  --acc:#4f7ef8;--acc2:#7ba3ff;
+  --txt:#eef0f7;--muted:#8892aa;--dim:#3d4358;
+  --red:#e05555;--grn:#3ecf6c;--ylw:#f5a623;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+  --tab-h: 72px;
+  --sheet-h: calc(100dvh - var(--tab-h) - var(--safe-bottom) - 56px);
+}
+html{height:100%;background:var(--bg)}
+body{height:100%;font-family:'Inter',sans-serif;background:var(--bg);color:var(--txt);overflow:hidden;-webkit-font-smoothing:antialiased}
+
+/* ── APP SHELL ── */
+.app{display:flex;flex-direction:column;height:100dvh;max-height:100dvh}
+
+/* ── TOP BAR ── */
+.topbar{
+  flex-shrink:0;
+  background:var(--s1);
+  border-bottom:1px solid var(--bd);
+  padding:calc(var(--safe-top) + 10px) 16px 10px;
+  display:flex;align-items:center;justify-content:space-between;
+  z-index:50;
+}
+.topbar h1{font-size:16px;font-weight:700;letter-spacing:-.01em}
+.topbar p{font-size:10px;color:var(--muted);margin-top:1px}
+.topbar-right{display:flex;gap:8px}
+.icon-btn{
+  width:40px;height:40px;border-radius:10px;border:none;
+  background:var(--s3);color:var(--txt);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;transition:.15s;
+}
+.icon-btn:active{background:var(--bd);transform:scale(.94)}
+.icon-btn.accent{background:var(--acc);color:#fff}
+.icon-btn.accent:active{background:var(--acc2)}
+
+/* ── CANVAS AREA ── */
+.canvas-area{
+  flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;
+  background:var(--bg);position:relative;
+  -webkit-overflow-scrolling:touch;
+}
+.canvas-wrap{padding:20px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+#sheet{background:#fff;box-shadow:0 8px 40px rgba(0,0,0,.7);position:relative;flex-shrink:0}
+#cutSvg{position:absolute;inset:0;pointer-events:none;overflow:visible;z-index:20}
+
+/* empty state */
+#emptyState{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:12px;pointer-events:none;
+}
+#emptyState .empty-icon{width:72px;height:72px;border-radius:18px;background:var(--s2);
+  display:flex;align-items:center;justify-content:center;border:1px solid var(--bd)}
+#emptyState p{font-size:13px;color:var(--muted)}
+
+/* ── BOTTOM TAB BAR ── */
+.tabs{
+  flex-shrink:0;background:var(--s1);
+  border-top:1px solid var(--bd);
+  padding:0 8px;
+  padding-bottom:var(--safe-bottom);
+  display:flex;align-items:stretch;
+  height:calc(var(--tab-h) + var(--safe-bottom));
+  z-index:100;
+}
+.tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;cursor:pointer;padding:8px 4px;border:none;background:none;
+  color:var(--muted);transition:.15s;border-radius:12px;
+}
+.tab:active{background:var(--s3);transform:scale(.96)}
+.tab.active{color:var(--acc)}
+.tab svg{width:22px;height:22px;stroke-width:1.8;transition:.15s}
+.tab.active svg{stroke-width:2.2}
+.tab span{font-size:9.5px;font-weight:500;letter-spacing:.02em}
+/* active pip */
+.tab.active::before{
+  content:'';position:absolute;top:0;width:20px;height:2px;
+  background:var(--acc);border-radius:0 0 2px 2px;
+}
+.tab{position:relative}
+
+/* ── BOTTOM SHEET (drawer) ── */
+.sheet-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;
+  opacity:0;pointer-events:none;transition:opacity .25s;
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+}
+.sheet-overlay.open{opacity:1;pointer-events:all}
+.bottom-sheet{
+  position:fixed;left:0;right:0;bottom:0;
+  background:var(--s1);border-radius:20px 20px 0 0;
+  z-index:201;
+  transform:translateY(100%);transition:transform .3s cubic-bezier(.32,.72,0,1);
+  max-height:85dvh;display:flex;flex-direction:column;
+  border-top:1px solid var(--bd);
+}
+.bottom-sheet.open{transform:translateY(0)}
+.sheet-handle{
+  width:36px;height:4px;background:var(--bd2);border-radius:2px;
+  margin:10px auto 4px;flex-shrink:0;
+}
+.sheet-title{
+  padding:4px 20px 12px;font-size:16px;font-weight:700;
+  border-bottom:1px solid var(--bd);flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.sheet-close{
+  width:30px;height:30px;border-radius:50%;border:none;
+  background:var(--s3);color:var(--muted);cursor:pointer;
+  font-size:15px;display:flex;align-items:center;justify-content:center;
+}
+.sheet-body{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px 20px;
+  padding-bottom:calc(16px + var(--safe-bottom));flex:1;touch-action:pan-y;overscroll-behavior:contain}
+
+/* ── FORM CONTROLS (mobile-sized) ── */
+.ctrl-group{margin-bottom:20px}
+.ctrl-label{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--dim);margin-bottom:10px}
+.ctrl-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.ctrl-row label{font-size:13px;color:var(--muted);min-width:72px;flex-shrink:0}
+
+input[type=number],input[type=text],select{
+  background:var(--s2);border:1.5px solid var(--bd);color:var(--txt);
+  border-radius:10px;padding:11px 12px;font-size:15px;width:100%;
+  -webkit-appearance:none;appearance:none;
+  font-family:'Inter',sans-serif;
+  transition:border-color .15s;
+}
+input[type=number]:focus,select:focus,input[type=text]:focus{
+  outline:none;border-color:var(--acc);
+}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%238892aa' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+.unit-select{width:80px!important;flex-shrink:0}
+
+input[type=range]{
+  -webkit-appearance:none;width:100%;height:6px;
+  background:var(--bd);border-radius:3px;cursor:pointer;outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:24px;height:24px;
+  border-radius:50%;background:var(--acc);cursor:pointer;
+  box-shadow:0 2px 8px rgba(79,126,248,.4);
+}
+.range-wrap{display:flex;align-items:center;gap:10px;flex:1}
+.range-val{font-size:13px;font-weight:600;color:var(--acc);min-width:44px;text-align:right}
+
+input[type=color]{
+  width:44px;height:44px;border:2px solid var(--bd);border-radius:10px;
+  cursor:pointer;background:none;padding:2px;-webkit-appearance:none;
+}
+
+/* ── TOGGLE ── */
+.tog-row{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:13px 0;border-bottom:1px solid var(--bd);
+}
+.tog-row:last-child{border-bottom:none}
+.tog-info{flex:1}
+.tog-info .tog-name{font-size:15px;color:var(--txt)}
+.tog-info .tog-desc{font-size:12px;color:var(--muted);margin-top:2px}
+.tog{position:relative;width:48px;height:28px;flex-shrink:0}
+.tog input{opacity:0;width:0;height:0}
+.tog .k{
+  position:absolute;inset:0;background:var(--bd);
+  border-radius:14px;cursor:pointer;transition:.2s;
+}
+.tog .k::after{
+  content:'';position:absolute;left:4px;top:4px;
+  width:20px;height:20px;background:#fff;border-radius:50%;
+  transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.3);
+}
+.tog input:checked+.k{background:var(--acc)}
+.tog input:checked+.k::after{transform:translateX(20px)}
+
+/* ── PILL TABS inside sheet ── */
+.seg{display:flex;gap:0;background:var(--s2);border-radius:12px;padding:3px}
+.seg-btn{
+  flex:1;padding:10px 8px;text-align:center;font-size:13px;font-weight:500;
+  border-radius:9px;border:none;cursor:pointer;color:var(--muted);background:none;
+  font-family:'Inter',sans-serif;transition:.15s;
+}
+.seg-btn.active{background:var(--acc);color:#fff;box-shadow:0 2px 8px rgba(79,126,248,.35)}
+
+/* ── BIG BUTTONS ── */
+.big-btn{
+  width:100%;padding:15px;border:none;border-radius:14px;
+  font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;
+  transition:.15s;display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.big-btn:active{transform:scale(.97)}
+.big-btn-primary{background:var(--acc);color:#fff;box-shadow:0 4px 16px rgba(79,126,248,.35)}
+.big-btn-secondary{background:var(--s2);color:var(--muted);border:1.5px solid var(--bd)}
+.big-btn-danger{background:rgba(224,85,85,.12);color:var(--red);border:1.5px solid rgba(224,85,85,.3)}
+.btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}
+
+/* ── THUMBNAIL STRIP (horizontal scroll) ── */
+.thumb-strip{
+  display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+.thumb-strip::-webkit-scrollbar{display:none}
+.thumb{
+  position:relative;flex-shrink:0;width:72px;height:72px;
+  border-radius:10px;overflow:hidden;border:2px solid var(--bd);cursor:pointer;
+  transition:.15s;
+}
+.thumb.selected{border-color:var(--acc);box-shadow:0 0 0 3px rgba(79,126,248,.3)}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb .del{
+  position:absolute;top:3px;right:3px;width:20px;height:20px;
+  background:rgba(0,0,0,.75);border:none;color:#fff;border-radius:50%;
+  cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;
+}
+
+/* ── ADD PHOTO CARD ── */
+.add-thumb{
+  flex-shrink:0;width:72px;height:72px;border-radius:10px;
+  border:2px dashed var(--bd2);cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;color:var(--muted);font-size:9px;font-weight:500;
+  background:var(--s2);transition:.15s;
+}
+.add-thumb:active{background:var(--s3);border-color:var(--acc)}
+.add-thumb svg{width:20px;height:20px}
+#fileInput{display:none}
+
+/* ── FILTER / EFFECT CHIPS ── */
+.chip-wrap{display:flex;gap:6px;overflow-x:auto;padding:2px 0 4px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.chip-wrap::-webkit-scrollbar{display:none}
+.chip{
+  flex-shrink:0;padding:8px 14px;border-radius:20px;
+  border:1.5px solid var(--bd);background:var(--s2);color:var(--muted);
+  font-size:12px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;
+  white-space:nowrap;transition:.15s;
+}
+.chip:active{transform:scale(.96)}
+.chip.active-acc{border-color:var(--acc);color:var(--acc);background:rgba(79,126,248,.1)}
+.chip.active-grn{border-color:var(--grn);color:var(--grn);background:rgba(62,207,108,.1)}
+
+/* ── PHOTO ITEMS ON SHEET ── */
+.pi{position:absolute;overflow:visible}
+.pi-img-wrap{position:absolute;inset:0;overflow:hidden}
+.pi-img-wrap img{width:100%;height:100%;display:block}
+.pi-img-wrap.fit img{object-fit:contain;background:#fff}
+.pi-img-wrap.fill img{object-fit:cover}
+.pi-label{position:absolute;bottom:0;left:0;right:0;padding:2px 4px;
+  font-size:9px;font-family:monospace;text-align:center;pointer-events:none;
+  line-height:1.4;z-index:4}
+.pi-overlay{position:absolute;inset:0;pointer-events:none;z-index:5}
+.pi.film .pi-img-wrap{inset:8% 8% 22% 8%}
+.pi.bordered .pi-img-wrap{inset:5%}
+/* selected ring */
+.pi.sel-ring::after{content:'';position:absolute;inset:0;border:2.5px solid var(--acc);pointer-events:none;z-index:2}
+.pi *{pointer-events:none}
+
+/* ── INSPECTOR SHEET (photo-level) ── */
+.insp-preview{
+  width:100%;height:140px;border-radius:12px;overflow:hidden;
+  background:var(--s2);border:1px solid var(--bd);
+  display:flex;align-items:center;justify-content:center;margin-bottom:16px;
+}
+.insp-preview canvas{max-width:100%;max-height:100%}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOP BAR -->
+  <header class="topbar">
+    <div>
+      <h1>Print Studio</h1>
+      <p>A4 · 210 × 297 mm</p>
+    </div>
+    <div class="topbar-right">
+      <button class="icon-btn" id="clearBtn" title="Clear all">🗑</button>
+      <button class="icon-btn accent" id="exportBtn" title="Export 300 DPI">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="20" height="20"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- CANVAS -->
+  <main class="canvas-area" id="canvasArea">
+    <div class="canvas-wrap">
+      <div id="sheet">
+        <svg id="cutSvg"></svg>
+        <div id="emptyState">
+          <div class="empty-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--acc)" stroke-width="1.5">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <polyline points="21 15 16 10 5 21"/>
+            </svg>
+          </div>
+          <p>Tap the Photos tab to add images</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- TAB BAR -->
+  <nav class="tabs" id="tabBar">
+    <button class="tab active" data-tab="photos">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      <span>Photos</span>
+    </button>
+    <button class="tab" data-tab="layout">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span>Layout</span>
+    </button>
+    <button class="tab" data-tab="cutlines">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12h18M12 3v18"/><circle cx="12" cy="12" r="2"/></svg>
+      <span>Cut Marks</span>
+    </button>
+    <button class="tab" data-tab="photo-edit" id="editTab">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      <span>Edit Photo</span>
+    </button>
+  </nav>
+
+</div>
+
+<!-- ── OVERLAY ── -->
+<div class="sheet-overlay" id="overlay"></div>
+
+<!-- ══ SHEET: PHOTOS ══ -->
+<div class="bottom-sheet" id="sheet-photos">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Photos<button class="sheet-close" data-close="sheet-photos">✕</button></div>
+  <div class="sheet-body">
+    <div class="ctrl-group">
+      <div class="thumb-strip" id="thumbStrip">
+        <div class="add-thumb" id="addThumbBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add
+        </div>
+      </div>
+      <input type="file" id="fileInput" multiple accept="image/*">
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">Photo Size</div>
+      <div style="margin-bottom:10px">
+        <select id="presetSel">
+          <option value="">Custom size</option>
+          <option value="35,45">Passport 35×45 mm</option>
+          <option value="40,60">4×6 cm</option>
+          <option value="50,70">5×7 cm</option>
+          <option value="51,51">2×2 in · ID</option>
+          <option value="89,127">3.5×5 in</option>
+          <option value="102,152">4×6 in</option>
+          <option value="127,178">5×7 in</option>
+        </select>
+      </div>
+      <div class="ctrl-row">
+        <label>Width</label>
+        <input type="number" id="photoW" value="45" min="5" max="200" step="0.5">
+        <select class="unit-select" id="unitSel">
+          <option value="mm">mm</option>
+          <option value="cm">cm</option>
+          <option value="in">in</option>
+        </select>
+      </div>
+      <div class="ctrl-row">
+        <label>Height</label>
+        <input type="number" id="photoH" value="45" min="5" max="280" step="0.5">
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">Spacing</div>
+      <div class="ctrl-row">
+        <label>Gap</label>
+        <div class="range-wrap">
+          <input type="range" id="gapVal" min="0" max="20" step="0.5" value="0">
+          <span class="range-val" id="gapLbl">0 mm</span>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <label>Margin</label>
+        <div class="range-wrap">
+          <input type="range" id="marginVal" min="0" max="30" step="0.5" value="5">
+          <span class="range-val" id="marginLbl">5 mm</span>
+        </div>
+      </div>
+    </div>
+    <button class="big-btn big-btn-secondary" id="applyLayoutBtn">Apply & Re-layout</button>
+  </div>
+</div>
+
+<!-- ══ SHEET: LAYOUT ══ -->
+<div class="bottom-sheet" id="sheet-layout">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Layout Mode<button class="sheet-close" data-close="sheet-layout">✕</button></div>
+  <div class="sheet-body">
+    <div class="ctrl-group">
+      <div class="seg" id="modeSeg">
+        <button class="seg-btn" data-mode="fill">Fill</button>
+        <button class="seg-btn active" data-mode="fit">Fit</button>
+        <button class="seg-btn" data-mode="even">Even</button>
+      </div>
+      <p style="font-size:13px;color:var(--muted);margin-top:12px;line-height:1.5" id="modeDesc">Crops images to cover each slot — no empty space.</p>
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">Page Background</div>
+      <div class="ctrl-row">
+        <label>Color</label>
+        <input type="color" id="pageBg" value="#ffffff">
+      </div>
+    </div>
+    <button class="big-btn big-btn-primary" id="applyModeBtn">Apply Layout</button>
+  </div>
+</div>
+
+<!-- ══ SHEET: CUT MARKS ══ -->
+<div class="bottom-sheet" id="sheet-cutlines">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">Cutting Guides<button class="sheet-close" data-close="sheet-cutlines">✕</button></div>
+  <div class="sheet-body">
+    <div class="ctrl-group">
+      <div class="tog-row">
+        <div class="tog-info">
+          <div class="tog-name">Cut Marks On</div>
+          <div class="tog-desc">Show all cutting guides</div>
+        </div>
+        <label class="tog"><input type="checkbox" id="showCut" checked><span class="k"></span></label>
+      </div>
+      <div class="tog-row">
+        <div class="tog-info">
+          <div class="tog-name">Corner Trim Marks</div>
+          <div class="tog-desc">L-shaped marks at each corner</div>
+        </div>
+        <label class="tog"><input type="checkbox" id="showCorners" checked><span class="k"></span></label>
+      </div>
+      <div class="tog-row">
+        <div class="tog-info">
+          <div class="tog-name">Grid Lines</div>
+          <div class="tog-desc">Full-bleed lines between cells</div>
+        </div>
+        <label class="tog"><input type="checkbox" id="showGrid" checked><span class="k"></span></label>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <div class="ctrl-label">Mark Style</div>
+      <div class="ctrl-row">
+        <label>Thickness</label>
+        <input type="number" id="cutThick" value="1" min="0.01" max="20" step="0.01" style="text-align:right">
+        <span style="font-size:12px;color:var(--muted);min-width:20px">px</span>
+      </div>
+      <div class="ctrl-row">
+        <label>Dash gap</label>
+        <input type="number" id="cutDash" value="0" min="0" max="50" step="0.01" style="text-align:right">
+        <span style="font-size:12px;color:var(--muted);min-width:20px">px</span>
+      </div>
+      <div class="ctrl-row">
+        <label>Opacity</label>
+        <input type="number" id="cutOpacity" value="1" min="0" max="1" step="0.01" style="text-align:right">
+        <span style="font-size:12px;color:var(--muted);min-width:20px">0–1</span>
+      </div>
+      <div class="ctrl-row">
+        <label>Color</label>
+        <input type="color" id="cutColor" value="#000000">
+        <span style="font-size:13px;color:var(--muted)" id="cutColorLbl">#000000</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SHEET: EDIT PHOTO ══ -->
+<div class="bottom-sheet" id="sheet-photo-edit">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">
+    <span id="editTitle">Edit Photo</span>
+    <button class="sheet-close" data-close="sheet-photo-edit">✕</button>
+  </div>
+  <div class="sheet-body">
+    <!-- no photo selected -->
+    <div id="noSelMsg" style="text-align:center;padding:30px 0;color:var(--muted);font-size:14px">
+      Tap a photo on the sheet to select it
+    </div>
+    <!-- inspector -->
+    <div id="inspBody" style="display:none">
+      <div class="insp-preview"><canvas id="inspCanvas" width="300" height="140"></canvas></div>
+      <div class="btn-grid">
+        <button class="big-btn big-btn-secondary" id="dupBtn">Duplicate</button>
+        <button class="big-btn big-btn-danger" id="delBtn">Delete</button>
+      </div>
+      <div style="height:1px;background:var(--bd);margin:16px 0"></div>
+      <div class="ctrl-group">
+        <div class="ctrl-label">Filter</div>
+        <div class="chip-wrap" id="filterChips">
+          <div class="chip active-acc" data-filter="none">None</div>
+          <div class="chip" data-filter="grayscale(1)">B&W</div>
+          <div class="chip" data-filter="sepia(0.85)">Sepia</div>
+          <div class="chip" data-filter="contrast(1.3) saturate(1.4)">Vivid</div>
+          <div class="chip" data-filter="brightness(1.1) contrast(0.9)">Soft</div>
+          <div class="chip" data-filter="hue-rotate(180deg)">Cold</div>
+        </div>
+      </div>
+      <div class="ctrl-group">
+        <div class="ctrl-label">Effect</div>
+        <div class="chip-wrap" id="effectChips">
+          <div class="chip active-grn" data-effect="none">None</div>
+          <div class="chip" data-effect="film">Instant Film</div>
+          <div class="chip" data-effect="bordered">Frame</div>
+          <div class="chip" data-effect="vignette">Vignette</div>
+        </div>
+      </div>
+      <div style="height:1px;background:var(--bd);margin:0 0 16px"></div>
+      <div class="ctrl-group">
+        <div class="ctrl-label">Label Text</div>
+        <input type="text" id="labelText" placeholder="Batch A · 2024-09" style="margin-bottom:10px">
+        <div class="ctrl-row">
+          <label>Size</label>
+          <div class="range-wrap">
+            <input type="range" id="labelSize" min="6" max="22" step="1" value="9">
+            <span class="range-val" id="labelSizeLbl">9</span>
+          </div>
+        </div>
+        <div class="ctrl-row">
+          <label>Position</label>
+          <select id="labelPos">
+            <option value="bottom">Bottom</option>
+            <option value="top">Top</option>
+            <option value="center">Center</option>
+          </select>
+        </div>
+        <div class="ctrl-row" style="gap:12px">
+          <label>Text</label>
+          <input type="color" id="labelColor" value="#ffffff">
+          <label style="min-width:auto">BG</label>
+          <input type="color" id="labelBg" value="#000000">
+        </div>
+        <button class="big-btn big-btn-secondary" id="applyAllLabelBtn" style="margin-top:8px">Apply label to all photos</button>
+      </div>
+      <div class="ctrl-group">
+        <div class="ctrl-label">Photo Border</div>
+        <div class="ctrl-row">
+          <label>Width</label>
+          <div class="range-wrap">
+            <input type="range" id="photoBW" min="0" max="14" step="1" value="0">
+            <span class="range-val" id="photoBWLbl">0</span>
+          </div>
+        </div>
+        <div class="ctrl-row">
+          <label>Color</label>
+          <input type="color" id="photoBColor" value="#ffffff">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+//  CONSTANTS & STATE
+// ═══════════════════════════════════════════════════════════
+const A4W=210,A4H=297;
+let DPI=300;
+const $=id=>document.getElementById(id);
+
+// Scale: fit A4 into screen nicely
+function computeScale(){
+  const maxW=window.innerWidth-40;
+  const maxH=window.innerHeight*0.52;
+  return Math.min(maxW/A4W, maxH/A4H);
+}
+let SCALE=computeScale();
+
+let photos=[];     // {src,img,name,filter,effect,label,labelSize,labelColor,labelBg,labelPos,borderW,borderColor}
+let layoutMode='fit';
+let selectedIdx=-1;
+let gridCols=0,gridRows=0,cellW=0,cellH=0,marMM=5,gapMM=2;
+
+function pxs(mm){return mm*SCALE}
+function toMM(v,unit){return unit==='cm'?v*10:unit==='in'?v*25.4:v}
+
+function photoDefaults(src,img,name){
+  return{src,img,name,filter:'none',effect:'none',
+    label:'',labelSize:9,labelColor:'#ffffff',labelBg:'#000000',labelPos:'bottom',
+    borderW:0,borderColor:'#ffffff'};
+}
+
+// ═══════════════════════════════════════════════════════════
+//  BOTTOM SHEET SYSTEM
+// ═══════════════════════════════════════════════════════════
+let activeSheet=null;
+
+function openSheet(id){
+  if(activeSheet) closeCurrentSheet(false);
+  const el=$('sheet-'+id);
+  if(!el)return;
+  activeSheet=id;
+  el.classList.add('open');
+  $('overlay').classList.add('open');
+  // Mark tab active
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.classList.toggle('active',t.dataset.tab===id);
+  });
+}
+
+function closeCurrentSheet(clearTab=true){
+  if(!activeSheet)return;
+  $('sheet-'+activeSheet).classList.remove('open');
+  $('overlay').classList.remove('open');
+  if(clearTab) document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  activeSheet=null;
+}
+
+// Overlay tap does NOT close — prevents accidental dismiss on swipe
+// Only ✕ button and tab re-tap close the sheet
+// $('overlay').onclick=()=>closeCurrentSheet();
+
+document.querySelectorAll('[data-close]').forEach(btn=>{
+  btn.onclick=()=>closeCurrentSheet();
+});
+
+// Tab clicks
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.onclick=()=>{
+    const id=tab.dataset.tab;
+    if(activeSheet===id){ closeCurrentSheet(); return; }
+    openSheet(id);
+    // For photo-edit, update inspector
+    if(id==='photo-edit') refreshInspector(); // selectedIdx already set before openSheet is called
+  };
+});
+
+// ═══════════════════════════════════════════════════════════
+//  FILE LOAD
+// ═══════════════════════════════════════════════════════════
+$('addThumbBtn').onclick=()=>$('fileInput').click();
+$('fileInput').onchange=e=>loadFiles([...(e.target.files||[])]);
+
+function loadFiles(files){
+  files.forEach(f=>{
+    const r=new FileReader();
+    r.onload=ev=>{
+      const img=new Image();
+      img.onload=()=>{ photos.push(photoDefaults(ev.target.result,img,f.name)); renderThumbs(); buildLayout(); };
+      img.src=ev.target.result;
+    };
+    r.readAsDataURL(f);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+//  THUMBNAILS
+// ═══════════════════════════════════════════════════════════
+function renderThumbs(){
+  const strip=$('thumbStrip');
+  // keep add button
+  while(strip.children.length>1) strip.removeChild(strip.lastChild);
+  photos.forEach((p,i)=>{
+    const d=document.createElement('div');
+    d.className='thumb'+(i===selectedIdx?' selected':'');
+    d.innerHTML=`<img src="${p.src}"><button class="del">✕</button>`;
+    d.onclick=ev=>{if(!ev.target.classList.contains('del')){ selectedIdx=i; selectPhoto(i); openSheet('photo-edit'); refreshInspector(); }};
+    d.querySelector('.del').onclick=ev=>{ev.stopPropagation();deletePhoto(i);};
+    strip.appendChild(d);
+  });
+  $('emptyState').style.display=photos.length?'none':'flex';
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PRESETS & RANGE LABELS
+// ═══════════════════════════════════════════════════════════
+$('presetSel').onchange=function(){
+  if(!this.value)return;
+  const[w,h]=this.value.split(',').map(Number);
+  $('photoW').value=w; $('photoH').value=h; $('unitSel').value='mm';
+};
+
+$('gapVal').oninput=()=>{ gapMM=+$('gapVal').value; $('gapLbl').textContent=gapMM+' mm'; drawCutMarks(); };
+$('marginVal').oninput=()=>{ marMM=+$('marginVal').value; $('marginLbl').textContent=marMM+' mm'; };
+$('applyLayoutBtn').onclick=buildLayout;
+$('applyModeBtn').onclick=()=>{ buildLayout(); closeCurrentSheet(); };
+$('pageBg').oninput=()=>{ $('sheet').style.background=$('pageBg').value; };
+
+// Mode seg
+const modeDescs={fill:'Crops images to cover each slot — no empty space.',fit:'Whole image visible — may show letterboxing.',even:'Auto-distributes photos to fill the sheet evenly.'};
+$('modeSeg').querySelectorAll('.seg-btn').forEach(b=>b.onclick=()=>{
+  $('modeSeg').querySelectorAll('.seg-btn').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');
+  layoutMode=b.dataset.mode;
+  $('modeDesc').textContent=modeDescs[layoutMode];
+});
+
+// Cut mark controls — live update
+['showCut','showCorners','showGrid'].forEach(id=>{ $(id).onchange=drawCutMarks; });
+$('cutColor').oninput=()=>{ $('cutColorLbl').textContent=$('cutColor').value; drawCutMarks(); };
+$('cutThick').oninput=drawCutMarks;
+$('cutDash').oninput=drawCutMarks;
+$('cutOpacity').oninput=drawCutMarks;
+
+// ═══════════════════════════════════════════════════════════
+//  BUILD LAYOUT
+// ═══════════════════════════════════════════════════════════
+function buildLayout(){
+  if(!photos.length){ resetSheet(); return; }
+  SCALE=computeScale();
+
+  const unit=$('unitSel').value;
+  let pW=toMM(+$('photoW').value||89,unit);
+  let pH=toMM(+$('photoH').value||127,unit);
+  gapMM=+$('gapVal').value||0;
+  marMM=+$('marginVal').value||5;
+  const iW=A4W-2*marMM, iH=A4H-2*marMM;
+
+  if(layoutMode==='even'){
+    let best=-1;
+    for(let c=1;c<=20;c++) for(let r=1;r<=30;r++){
+      if(c*r<photos.length)continue;
+      const wf=(iW-(c-1)*gapMM)/c, hf=(iH-(r-1)*gapMM)/r;
+      if(wf<3||hf<3)continue;
+      const s=wf*hf*c*r;
+      if(s>best){best=s;gridCols=c;gridRows=r;}
+    }
+    cellW=(iW-(gridCols-1)*gapMM)/gridCols;
+    cellH=(iH-(gridRows-1)*gapMM)/gridRows;
+  } else {
+    gridCols=Math.max(1,Math.floor((iW+gapMM)/(pW+gapMM)));
+    gridRows=Math.max(1,Math.floor((iH+gapMM)/(pH+gapMM)));
+    cellW=pW; cellH=pH;
+  }
+
+  const placed=Math.min(photos.length,gridCols*gridRows);
+  const sheet=$('sheet');
+  sheet.style.width=pxs(A4W)+'px';
+  sheet.style.height=pxs(A4H)+'px';
+  sheet.style.background=$('pageBg').value;
+
+  // Remove old items
+  [...sheet.querySelectorAll('.pi')].forEach(e=>e.remove());
+
+  for(let i=0;i<placed;i++){
+    const col=i%gridCols, row=Math.floor(i/gridCols);
+    placeItem(i, marMM+col*(cellW+gapMM), marMM+row*(cellH+gapMM), cellW, cellH);
+  }
+
+  drawCutMarks();
+  updateStatus(placed);
+}
+
+function resetSheet(){
+  SCALE=computeScale();
+  const sheet=$('sheet');
+  [...sheet.querySelectorAll('.pi')].forEach(e=>e.remove());
+  $('cutSvg').innerHTML='';
+  sheet.style.width=pxs(A4W)+'px';
+  sheet.style.height=pxs(A4H)+'px';
+  $('emptyState').style.display='flex';
+}
+
+function placeItem(idx,x,y,w,h){
+  const p=photos[idx];
+  const el=document.createElement('div');
+  el.className='pi'+(p.effect&&p.effect!=='none'?' '+p.effect:'');
+  if(idx===selectedIdx)el.classList.add('sel-ring');
+  el.dataset.idx=idx;
+  el.style.cssText=`left:${pxs(x)}px;top:${pxs(y)}px;width:${pxs(w)}px;height:${pxs(h)}px`;
+  if(p.effect==='film'){el.style.background='#f8f2e8';el.style.boxShadow='1px 1px 4px rgba(0,0,0,.2)';}
+
+  const wrap=document.createElement('div');
+  wrap.className='pi-img-wrap '+(layoutMode==='fit'?'fit':'fill');
+  if(p.borderW>0){wrap.style.outline=`${p.borderW}px solid ${p.borderColor}`;wrap.style.outlineOffset=`-${p.borderW}px`;}
+
+  const img=document.createElement('img');
+  img.src=p.src;
+  img.style.filter=p.filter==='none'?'':p.filter;
+  wrap.appendChild(img);
+
+  if(p.effect==='vignette'){
+    const ov=document.createElement('div');
+    ov.className='pi-overlay';
+    ov.style.background='radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.6) 100%)';
+    wrap.appendChild(ov);
+  }
+  el.appendChild(wrap);
+
+  if(p.label){
+    const lbl=document.createElement('div');
+    lbl.className='pi-label';
+    lbl.textContent=p.label;
+    lbl.style.fontSize=p.labelSize+'px';
+    lbl.style.color=p.labelColor;
+    lbl.style.background=p.labelBg+'cc';
+    if(p.labelPos==='top'){lbl.style.bottom='auto';lbl.style.top='0';}
+    if(p.labelPos==='center'){lbl.style.bottom='auto';lbl.style.top='50%';lbl.style.transform='translateY(-50%)';}
+    el.appendChild(lbl);
+  }
+
+  // click handled by delegated listener on #sheet
+  $('sheet').appendChild(el);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SVG CUT MARKS — each shared edge drawn ONCE only
+// ═══════════════════════════════════════════════════════════
+function drawCutMarks(){
+  const svg=$('cutSvg');
+  svg.innerHTML='';
+  if(!photos.length||!$('showCut').checked)return;
+
+  const sW=pxs(A4W), sH=pxs(A4H);
+  svg.setAttribute('viewBox',`0 0 ${sW} ${sH}`);
+  svg.setAttribute('width',sW); svg.setAttribute('height',sH);
+
+  const color   = $('cutColor').value;
+  const thick   = Math.max(0.01, +$('cutThick').value  || 0.8);
+  const dashV   = Math.max(0,    +$('cutDash').value   || 0);
+  const opacity = Math.min(1, Math.max(0, +$('cutOpacity').value ?? 1));
+  const dash    = dashV === 0 ? 'none' : `${dashV},${dashV}`;
+  const placed  = Math.min(photos.length, gridCols * gridRows);
+
+  // Build a de-duplicated set of line segments.
+  // Key format: "x1,y1,x2,y2" always with smaller coordinate first so
+  // a shared edge between photo A and photo B only appears once.
+  const edges = new Map(); // key -> {x1,y1,x2,y2}
+
+  function addEdge(x1,y1,x2,y2){
+    // Normalise: always store top-to-bottom / left-to-right
+    const key = x1===x2
+      ? `v:${Math.round(x1*100)},${Math.round(Math.min(y1,y2)*100)},${Math.round(Math.max(y1,y2)*100)}`
+      : `h:${Math.round(Math.min(x1,x2)*100)},${Math.round(y1*100)},${Math.round(Math.max(x1,x2)*100)}`;
+    if(!edges.has(key)) edges.set(key,{x1,y1,x2,y2});
+  }
+
+  for(let i=0;i<placed;i++){
+    const col=i%gridCols, row=Math.floor(i/gridCols);
+    const x =pxs(marMM + col*(cellW+gapMM));
+    const y =pxs(marMM + row*(cellH+gapMM));
+    const x2=x+pxs(cellW);
+    const y2=y+pxs(cellH);
+    // 4 edges of this photo
+    addEdge(x, y,  x2, y);   // top
+    addEdge(x, y2, x2, y2);  // bottom
+    addEdge(x, y,  x,  y2);  // left
+    addEdge(x2,y,  x2, y2);  // right
+  }
+
+  // Render each unique edge once
+  const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+  g.setAttribute('opacity', opacity);
+  edges.forEach(({x1,y1,x2,y2})=>{
+    const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+    l.setAttribute('x1',x1); l.setAttribute('y1',y1);
+    l.setAttribute('x2',x2); l.setAttribute('y2',y2);
+    l.setAttribute('stroke', color);
+    l.setAttribute('stroke-width', thick);
+    l.setAttribute('stroke-dasharray', dash);
+    l.setAttribute('stroke-linecap','square');
+    g.appendChild(l);
+  });
+  svg.appendChild(g);
+}
+
+function ln(svg,x1,y1,x2,y2,stroke,sw,da){
+  const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+  l.setAttribute('x1',x1);l.setAttribute('y1',y1);
+  l.setAttribute('x2',x2);l.setAttribute('y2',y2);
+  l.setAttribute('stroke',stroke);
+  l.setAttribute('stroke-width',sw);
+  l.setAttribute('stroke-dasharray',da);
+  l.setAttribute('stroke-linecap','square');
+  svg.appendChild(l);
+}
+
+// ═══════════════════════════════════════════════════════════
+//  PHOTO SELECTION & INSPECTOR
+// ═══════════════════════════════════════════════════════════
+function selectPhoto(idx){
+  selectedIdx = idx;
+  // Only update selection rings — no full rebuild
+  $('sheet').querySelectorAll('.pi').forEach(el => {
+    const i = +el.dataset.idx;
+    el.classList.toggle('sel-ring', i === idx);
+  });
+  renderThumbs();
+}
+
+function refreshInspector(){
+  // Snapshot idx NOW so all closures below use this exact value
+  const idx = selectedIdx;
+
+  if(idx < 0 || idx >= photos.length){
+    $('noSelMsg').style.display='block';
+    $('inspBody').style.display='none';
+    return;
+  }
+  $('noSelMsg').style.display='none';
+  $('inspBody').style.display='block';
+
+  // Always read fresh from photos[idx] — never use a stale `p` reference
+  const getP = () => photos[idx];
+  $('editTitle').textContent = 'Photo '+(idx+1)+' of '+photos.length;
+
+  // Preview
+  const cvs=$('inspCanvas');
+  const ctx=cvs.getContext('2d');
+  ctx.clearRect(0,0,300,140);
+  const img = getP().img;
+  const sc=Math.min(300/img.naturalWidth, 140/img.naturalHeight);
+  const dw=img.naturalWidth*sc, dh=img.naturalHeight*sc;
+  ctx.filter = getP().filter==='none' ? 'none' : getP().filter;
+  ctx.drawImage(img,(300-dw)/2,(140-dh)/2,dw,dh);
+  ctx.filter='none';
+
+  // Filter chips
+  $('filterChips').querySelectorAll('.chip').forEach(c=>{
+    c.classList.toggle('active-acc', c.dataset.filter===getP().filter);
+    c.onclick=()=>{ photos[idx].filter=c.dataset.filter; refreshInspector(); buildLayout(); };
+  });
+
+  // Effect chips
+  $('effectChips').querySelectorAll('.chip').forEach(c=>{
+    c.classList.toggle('active-grn', c.dataset.effect===getP().effect);
+    c.onclick=()=>{ photos[idx].effect=c.dataset.effect; refreshInspector(); buildLayout(); };
+  });
+
+  // Label — read fresh each time
+  $('labelText').value      = getP().label;
+  $('labelSize').value      = getP().labelSize;
+  $('labelSizeLbl').textContent = getP().labelSize;
+  $('labelColor').value     = getP().labelColor;
+  $('labelBg').value        = getP().labelBg;
+  $('labelPos').value       = getP().labelPos;
+
+  $('labelText').oninput  = ()=>{ photos[idx].label=       $('labelText').value;   buildLayout(); };
+  $('labelSize').oninput  = ()=>{ photos[idx].labelSize=  +$('labelSize').value;  $('labelSizeLbl').textContent=photos[idx].labelSize; buildLayout(); };
+  $('labelColor').oninput = ()=>{ photos[idx].labelColor=  $('labelColor').value;  buildLayout(); };
+  $('labelBg').oninput    = ()=>{ photos[idx].labelBg=     $('labelBg').value;     buildLayout(); };
+  $('labelPos').onchange  = ()=>{ photos[idx].labelPos=    $('labelPos').value;    buildLayout(); };
+
+  $('applyAllLabelBtn').onclick=()=>{
+    const src=photos[idx];
+    photos.forEach(ph=>{ ph.label=src.label; ph.labelSize=src.labelSize; ph.labelColor=src.labelColor; ph.labelBg=src.labelBg; ph.labelPos=src.labelPos; });
+    buildLayout();
+  };
+
+  // Border
+  $('photoBW').value            = getP().borderW;
+  $('photoBWLbl').textContent   = getP().borderW;
+  $('photoBColor').value        = getP().borderColor;
+  $('photoBW').oninput    = ()=>{ photos[idx].borderW=     +$('photoBW').value;    $('photoBWLbl').textContent=photos[idx].borderW; buildLayout(); };
+  $('photoBColor').oninput= ()=>{ photos[idx].borderColor=  $('photoBColor').value; buildLayout(); };
+
+  // Actions — use idx directly, not selectedIdx, so they don't drift
+  $('dupBtn').onclick=()=>{
+    const copy={...photos[idx], img:photos[idx].img, src:photos[idx].src};
+    photos.splice(idx+1, 0, copy);
+    selectedIdx = idx+1;
+    renderThumbs(); buildLayout(); refreshInspector();
+  };
+  $('delBtn').onclick=()=>deletePhoto(idx);
+}
+
+function deletePhoto(idx){
+  photos.splice(idx,1);
+  selectedIdx=Math.min(selectedIdx,photos.length-1);
+  if(photos.length===0) selectedIdx=-1;
+  renderThumbs(); buildLayout(); refreshInspector();
+}
+
+// ═══════════════════════════════════════════════════════════
+//  STATUS
+// ═══════════════════════════════════════════════════════════
+function updateStatus(placed){
+  const unit=$('unitSel').value;
+  const f=n=>unit==='mm'?n.toFixed(1)+'mm':unit==='cm'?(n/10).toFixed(1)+'cm':(n/25.4).toFixed(2)+'"';
+  // Could show in topbar subtitle
+}
+
+// ═══════════════════════════════════════════════════════════
+//  GLOBAL ACTIONS
+// ═══════════════════════════════════════════════════════════
+$('clearBtn').onclick=()=>{
+  if(!photos.length)return;
+  photos=[]; selectedIdx=-1;
+  renderThumbs(); resetSheet(); closeCurrentSheet();
+};
+
+// ═══════════════════════════════════════════════════════════
+//  EXPORT 300 DPI
+// ═══════════════════════════════════════════════════════════
+$('exportBtn').onclick=async()=>{
+  if(!photos.length) return;
+  const btn=$('exportBtn');
+  btn.style.opacity='.4'; btn.disabled=true;
+  const busy=document.createElement('div');
+  busy.id='exportBusy';
+  busy.textContent='Rendering… please wait';
+  busy.style.cssText='position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;background:rgba(15,16,18,.85);color:#eef0f7;font:600 16px Inter,sans-serif';
+  document.body.appendChild(busy);
+  await new Promise(r=>setTimeout(r,50));
+  let lastErr=null;
+  // Try highest quality first; fall back if the phone can't build an image that large
+  for (const d of [300]) {
+    DPI = d;
+    try { await renderExport(); lastErr=null; break; }
+    catch(err){ lastErr=err; }
+  }
+  const b2=document.getElementById('exportBusy'); if(b2) b2.remove();
+  if (lastErr) alert('Export failed: ' + lastErr.message);
+  btn.style.opacity='1'; btn.disabled=false;
+};
+
+async function renderExport(){
+  {
+    const PPM = DPI / 25.4;
+    const cW  = Math.round(A4W * PPM);
+    const cH  = Math.round(A4H * PPM);
+    const placed = Math.min(photos.length, gridCols * gridRows);
+
+    // ── Reload every image fresh from its data-URL so canvas is never tainted ──
+    const freshImgs = await Promise.all(
+      photos.slice(0, placed).map(p => new Promise((res, rej) => {
+        const img = new Image();
+        img.onload  = () => res(img);
+        img.onerror = () => rej(new Error('Image load failed'));
+        img.src = p.src;   // p.src is always a base64 data-URL from FileReader
+      }))
+    );
+
+    const canvas = document.createElement('canvas');
+    canvas.width  = cW;
+    canvas.height = cH;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas too large for this device');
+
+    // Page background
+    ctx.fillStyle = $('pageBg').value;
+    ctx.fillRect(0, 0, cW, cH);
+
+    // ── Draw each photo ──
+    for (let i = 0; i < placed; i++) {
+      const p   = photos[i];
+      const img = freshImgs[i];
+      const col = i % gridCols, row = Math.floor(i / gridCols);
+      const xPx = (marMM + col*(cellW + gapMM)) * PPM;
+      const yPx = (marMM + row*(cellH + gapMM)) * PPM;
+      const wPx = cellW * PPM;
+      const hPx = cellH * PPM;
+
+      // Effect inset
+      let ix=xPx, iy=yPx, iw=wPx, ih=hPx;
+      if (p.effect === 'film') {
+        ctx.fillStyle = '#f8f2e8';
+        ctx.fillRect(xPx, yPx, wPx, hPx);
+        ix += wPx*.08; iy += hPx*.08; iw = wPx*.84; ih = hPx*.70;
+      } else if (p.effect === 'bordered') {
+        ix += wPx*.05; iy += hPx*.05; iw *= .90; ih *= .90;
+      }
+
+      // Clip & draw image
+      ctx.save();
+      ctx.beginPath(); ctx.rect(ix, iy, iw, ih); ctx.clip();
+      if (p.filter && p.filter !== 'none') ctx.filter = p.filter;
+      const sc = layoutMode === 'fit'
+        ? Math.min(iw / img.naturalWidth, ih / img.naturalHeight)
+        : Math.max(iw / img.naturalWidth, ih / img.naturalHeight);
+      ctx.drawImage(img,
+        ix + (iw - img.naturalWidth  * sc) / 2,
+        iy + (ih - img.naturalHeight * sc) / 2,
+        img.naturalWidth  * sc,
+        img.naturalHeight * sc);
+      ctx.filter = 'none';
+      ctx.restore();
+
+      // Vignette overlay
+      if (p.effect === 'vignette') {
+        const gr = ctx.createRadialGradient(
+          xPx+wPx/2, yPx+hPx/2, Math.min(wPx,hPx)*.2,
+          xPx+wPx/2, yPx+hPx/2, Math.max(wPx,hPx)*.75);
+        gr.addColorStop(0,'transparent');
+        gr.addColorStop(1,'rgba(0,0,0,.55)');
+        ctx.fillStyle = gr;
+        ctx.fillRect(xPx, yPx, wPx, hPx);
+      }
+
+      // Photo border
+      if (p.borderW > 0) {
+        ctx.strokeStyle = p.borderColor;
+        ctx.lineWidth   = p.borderW;
+        ctx.setLineDash([]);
+        ctx.strokeRect(xPx + p.borderW/2, yPx + p.borderW/2, wPx - p.borderW, hPx - p.borderW);
+      }
+
+      // Label text
+      if (p.label) {
+        const fs  = p.labelSize * (PPM / 3.779);
+        ctx.font  = `bold ${fs}px monospace`;
+        const tw  = ctx.measureText(p.label).width;
+        const pad = fs * .3, lh = fs + pad * 2;
+        const lx  = xPx + (wPx - tw) / 2 - pad;
+        const ly  = p.labelPos === 'top'    ? yPx
+                  : p.labelPos === 'center' ? yPx + hPx/2 - lh/2
+                  : yPx + hPx - lh;
+        ctx.fillStyle = p.labelBg + 'cc';
+        ctx.fillRect(lx, ly, tw + pad*2, lh);
+        ctx.fillStyle = p.labelColor;
+        ctx.fillText(p.label, lx + pad, ly + lh - pad*.8);
+      }
+    }
+
+    // ── Cut marks — each shared edge drawn ONCE ──
+    if ($('showCut').checked) {
+      const color   = $('cutColor').value;
+      const thick   = Math.max(0.01, +$('cutThick').value   || 0.8);
+      const dashV   = Math.max(0,    +$('cutDash').value    || 0);
+      const opacity = Math.min(1, Math.max(0, +($('cutOpacity').value ?? 1)));
+
+      const edges = new Map();
+      const addE  = (x1,y1,x2,y2) => {
+        const key = x1===x2
+          ? `v:${Math.round(x1)},${Math.round(Math.min(y1,y2))},${Math.round(Math.max(y1,y2))}`
+          : `h:${Math.round(Math.min(x1,x2))},${Math.round(y1)},${Math.round(Math.max(x1,x2))}`;
+        if (!edges.has(key)) edges.set(key, {x1,y1,x2,y2});
+      };
+      for (let i=0; i<placed; i++) {
+        const col=i%gridCols, row=Math.floor(i/gridCols);
+        const x  = (marMM + col*(cellW+gapMM)) * PPM;
+        const y  = (marMM + row*(cellH+gapMM)) * PPM;
+        const x2 = x + cellW * PPM;
+        const y2 = y + cellH * PPM;
+        addE(x,y,x2,y); addE(x,y2,x2,y2);
+        addE(x,y,x,y2); addE(x2,y,x2,y2);
+      }
+      ctx.save();
+      ctx.globalAlpha = opacity;
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = thick;
+      ctx.setLineDash(dashV > 0 ? [dashV, dashV] : []);
+      ctx.lineCap = 'square';
+      edges.forEach(({x1,y1,x2,y2}) => {
+        ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+      });
+      ctx.restore();
+    }
+    ctx.setLineDash([]);
+
+    // ── Deliver the file via an in-page result screen (no pop-ups, no auto-download) ──
+    const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+    if (!blob || blob.size < 1000) { canvas.width = canvas.height = 0; throw new Error('Image too large for this device'); }
+    showExportResult(blob);
+
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════
+//  EXPORT RESULT SCREEN — Save / Share / Download
+// ═══════════════════════════════════════════════════════════
+function showExportResult(blob){
+  const old = document.getElementById('exportResult');
+  if (old) old.remove();
+
+  const url  = URL.createObjectURL(blob);
+  const name = `a4-print-${DPI}dpi.png`;
+  const file = new File([blob], name, {type:'image/png'});
+  const canShare = !!(navigator.canShare && navigator.canShare({files:[file]}));
+
+  const btnCss = 'flex:1;padding:15px;border:none;border-radius:14px;font-size:15px;font-weight:600;font-family:Inter,sans-serif;text-align:center;text-decoration:none;cursor:pointer;';
+  const wrap = document.createElement('div');
+  wrap.id = 'exportResult';
+  wrap.style.cssText = 'position:fixed;inset:0;z-index:1000;background:#0f1012;color:#eef0f7;display:flex;flex-direction:column;font-family:Inter,sans-serif';
+  wrap.innerHTML = `
+    <div style="padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 12px;display:flex;align-items:center;justify-content:center;border-bottom:1px solid #32364a">
+      <div style="font-weight:700;font-size:16px">Export ready · ${DPI} DPI</div>
+    </div>
+    <div style="flex:1;overflow:auto;padding:16px;text-align:center;-webkit-overflow-scrolling:touch">
+      <img src="${url}" style="max-width:100%;box-shadow:0 8px 40px rgba(0,0,0,.7);background:#fff">
+      <p style="font-size:13px;color:#8892aa;margin-top:14px;line-height:1.5">${canShare ? 'Tap <b>Save / Share</b> and choose “Save Image”,<br>or long-press the image to save it to Photos.' : 'Tap <b>Download</b>, or long-press the image<br>and choose “Add to Photos”.'}</p>
+    </div>
+    <div style="padding:12px 16px calc(env(safe-area-inset-bottom,0px) + 12px);display:flex;gap:10px;border-top:1px solid #32364a">
+      ${canShare ? `<button id="erShare" style="${btnCss}background:#4f7ef8;color:#fff">Save / Share</button>` : ''}
+      ${canShare ? '' : `<a id="erDl" href="${url}" download="${name}" style="${btnCss}background:#4f7ef8;color:#fff">Download</a>`}
+    </div>`;
+  const busy=document.getElementById('exportBusy'); if(busy) busy.remove();
+  wrap.style.pointerEvents='none';
+  setTimeout(()=>{ wrap.style.pointerEvents='auto'; }, 900); // ignore accidental double-taps
+  document.body.appendChild(wrap);
+
+  // No button: leave with the browser back swipe/gesture instead
+  history.pushState({export:true}, '');
+  const close = () => { window.removeEventListener('popstate', close); wrap.remove(); setTimeout(()=>URL.revokeObjectURL(url), 1000); };
+  window.addEventListener('popstate', close);
+  const shareBtn = wrap.querySelector('#erShare');
+  if (shareBtn) shareBtn.onclick = async () => {
+    try { await navigator.share({files:[file], title:name}); }
+    catch(e) { /* user cancelled the share sheet — nothing to do */ }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════
+//  SWIPE TO CLOSE — handle only, 60px threshold
+// ═══════════════════════════════════════════════════════════
+(function(){
+  let startY=0, startX=0, dragging=false;
+
+  document.querySelectorAll('.sheet-handle').forEach(handle=>{
+    handle.style.cursor='grab';
+    handle.style.padding='16px 0';
+
+    handle.addEventListener('touchstart',e=>{
+      startY=e.touches[0].clientY;
+      startX=e.touches[0].clientX;
+      dragging=true;
+    },{passive:true});
+
+    handle.addEventListener('touchend',e=>{
+      if(!dragging)return;
+      dragging=false;
+      const dy=e.changedTouches[0].clientY - startY;
+      const dx=Math.abs(e.changedTouches[0].clientX - startX);
+      // Only close if swiped clearly downward > 60px and more vertical than horizontal
+      if(dy>60 && dy>dx*1.5) closeCurrentSheet();
+    },{passive:true});
+  });
+
+  // Prevent touch scroll on sheet body from reaching the overlay/page behind it
+  document.querySelectorAll('.sheet-body').forEach(body=>{
+    body.addEventListener('touchmove',e=>e.stopPropagation(),{passive:true});
+  });
+})();
+
+// ═══════════════════════════════════════════════════════════
+//  RESIZE
+// ═══════════════════════════════════════════════════════════
+window.addEventListener('resize',()=>{ SCALE=computeScale(); buildLayout(); });
+
+
+// ── App icon for "Add to Home Screen" (drawn at load, no extra file needed) ──
+(function(){
+  try{
+    const c=document.createElement('canvas'); c.width=c.height=180;
+    const x=c.getContext('2d');
+    x.fillStyle='#4f7ef8'; x.fillRect(0,0,180,180);
+    x.fillStyle='#fff'; x.fillRect(48,28,84,124);
+    x.strokeStyle='#4f7ef8'; x.lineWidth=3;
+    for(let r=0;r<3;r++)for(let q=0;q<2;q++) x.strokeRect(54+q*38,34+r*38,38,38);
+    const l=document.createElement('link'); l.rel='apple-touch-icon'; l.href=c.toDataURL('image/png');
+    document.head.appendChild(l);
+  }catch(e){}
+})();
+
+// ── INIT ──
+buildLayout();
+
+// Single delegated click listener on the sheet — uses pointer coordinates
+// to find exactly which photo cell was clicked. Avoids any z-index / overlap issues.
+$('sheet').addEventListener('click', function(e) {
+  if (!photos.length) return;
+  const rect = $('sheet').getBoundingClientRect();
+  // Position relative to the sheet in px
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  // Convert to mm
+  const mmX = mx / SCALE;
+  const mmY = my / SCALE;
+
+  const placed = Math.min(photos.length, gridCols * gridRows);
+  let hit = -1;
+  for (let i = 0; i < placed; i++) {
+    const col = i % gridCols, row = Math.floor(i / gridCols);
+    const x = marMM + col * (cellW + gapMM);
+    const y = marMM + row * (cellH + gapMM);
+    if (mmX >= x && mmX <= x + cellW && mmY >= y && mmY <= y + cellH) {
+      hit = i;
+      break;
+    }
+  }
+  if (hit >= 0) {
+    selectedIdx = hit;
+    selectPhoto(hit);
+    openSheet('photo-edit');
+    refreshInspector();
+  }
+});
+// Open photos sheet on start after short delay
+setTimeout(()=>openSheet('photos'),300);
+</script>
+</body>
+</html>
